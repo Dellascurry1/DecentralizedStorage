@@ -392,3 +392,100 @@
     (ok {user: user, provider: provider})
   )
 )
+
+(define-map provider-reputation
+    principal
+    {
+        rating-sum: uint,
+        rating-count: uint,
+        weighted-score: uint
+    }
+)
+
+(define-public (rate-provider (provider principal) (rating uint))
+    (let (
+        (user tx-sender)
+        (current-rep (default-to {rating-sum: u0, rating-count: u0, weighted-score: u0} 
+            (map-get? provider-reputation provider)))
+        (provider-qos (unwrap! (map-get? qos-metrics provider) err-provider-not-found))
+        (uptime-weight u3)
+        (qos-weight u2) 
+        (rating-weight u5)
+    )
+        (asserts! (and (>= rating u0) (<= rating u100)) err-invalid-amount)
+        (asserts! (is-some (get-agreement-details user provider)) err-not-registered)
+        
+        (let ((new-rating-sum (+ (get rating-sum current-rep) rating))
+              (new-rating-count (+ (get rating-count current-rep) u1))
+              (avg-rating (/ new-rating-sum new-rating-count))
+              (weighted-score (/ (+ 
+                (* (get uptime-score (unwrap! (get-provider-details provider) err-provider-not-found)) uptime-weight)
+                (* (get availability provider-qos) qos-weight)
+                (* avg-rating rating-weight)
+              ) (+ uptime-weight qos-weight rating-weight))))
+            
+            (map-set provider-reputation provider
+                {
+                    rating-sum: new-rating-sum,
+                    rating-count: new-rating-count,
+                    weighted-score: weighted-score
+                }
+            )
+            (ok weighted-score)
+        )
+    )
+)
+
+
+(define-map storage-trades
+    uint
+    {
+        seller: principal,
+        provider: principal,
+        space-amount: uint,
+        price: uint,
+        is-active: bool
+    }
+)
+
+(define-data-var trade-nonce uint u0)
+
+(define-public (create-storage-trade (provider principal) (space uint) (price uint))
+    (let (
+        (seller tx-sender)
+        (agreement (unwrap! (get-agreement-details seller provider) err-not-registered))
+        (trade-id (var-get trade-nonce))
+    )
+        (asserts! (<= space (get space-allocated agreement)) err-invalid-amount)
+        
+        (map-set storage-trades trade-id
+            {
+                seller: seller,
+                provider: provider,
+                space-amount: space,
+                price: price,
+                is-active: true
+            }
+        )
+        
+        (var-set trade-nonce (+ trade-id u1))
+        (ok trade-id)
+    )
+)
+
+(define-public (execute-storage-trade (trade-id uint))
+    (let (
+        (buyer tx-sender)
+        (trade (unwrap! (map-get? storage-trades trade-id) err-not-registered))
+    )
+        (asserts! (get is-active trade) err-invalid-amount)
+        (asserts! (not (is-eq buyer (get seller trade))) err-unauthorized)
+        
+        (try! (request-storage (get provider trade) (get space-amount trade)))
+        
+        (map-set storage-trades trade-id
+            (merge trade {is-active: false})
+        )
+        (ok true)
+    )
+)
