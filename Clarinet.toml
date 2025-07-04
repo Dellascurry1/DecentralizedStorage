@@ -10,6 +10,11 @@ path = 'contracts/DecentralizedStorage.clar'
 clarity_version = 3
 epoch = 3.1
 
+[contracts.StorageInsurance]
+path = 'contracts/StorageInsurance.clar'
+clarity_version = 3
+epoch = 3.1
+
 [contracts.StorageBackup]
 path = 'contracts/StorageBackup.clar'
 clarity_version = 3
