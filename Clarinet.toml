@@ -24,6 +24,11 @@ epoch = 3.1
 path = 'contracts/DynamicPricing.clar'
 clarity_version = 3
 epoch = 3.1
+
+[contracts.StorageDispute]
+path = 'contracts/StorageDispute.clar'
+clarity_version = 3
+epoch = 3.1
 [repl.analysis]
 passes = ['check_checker']
 
